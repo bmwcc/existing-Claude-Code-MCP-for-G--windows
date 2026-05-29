@@ -1,12 +1,20 @@
 {
   "accounts": {
     "personal": {
-      "email": "your.personal@gmail.com",
-      "description": "Personal Gmail account"
+      "email": "alizamankhan152@gmail.com",
+      "description": "Personal Gmail"
     },
     "work": {
-      "email": "your.work@company.com",
+      "email": "ali@logicbuilder.ai",
       "description": "Work account"
+    },
+    "maryaam_personal": {
+      "email": "maryaam2209@gmail.com",
+      "description": "Maryam Personal Gmail"
+    },
+    "maryaam_work": {
+      "email": "maryamworkx@gmail.com",
+      "description": "Maryam Work Gmail"
     }
   },
   "credentials_dir": "./credentials"
