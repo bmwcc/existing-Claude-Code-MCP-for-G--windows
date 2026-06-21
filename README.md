@@ -68,16 +68,36 @@ The account keys (`personal`, `work`) are the names you'll use when asking Claud
 
 #### Per-account signatures (optional)
 
-Each account can have its own email signature, applied automatically to every
-message it sends — you never pass signature info as a tool parameter.
+Each account can have a signature applied automatically to every message it
+sends — you never pass signature info as a tool parameter. The signature is
+resolved from the first available source in this **priority order** (only one
+source is ever used per email):
+
+1. **Auto-fetched Gmail signature** — the signature set in that account's own
+   Gmail Settings (*Settings → See all settings → Signature*), read live via the
+   Gmail Settings API. If a signature exists there, it's used and config.json is
+   ignored. Nothing to configure.
+2. **`signature_html`** (config.json) — used only if no Gmail signature is set.
+   Appended to the HTML part of the email.
+3. **`signature_image_path`** (config.json) — used only if neither of the above
+   applies. The image is embedded inline at the bottom of the email (via
+   `Content-ID` / `<img src="cid:...">`), so it appears as a signature image, not
+   a file attachment. Path is relative to the project root or absolute.
+4. **No signature** — if none of the above is set.
+
+A plain-text body is always included as a fallback for clients that don't render
+HTML.
 
 | Field | Behavior |
 |-------|----------|
-| `signature_html` | If set, this HTML block is appended to the HTML part of every outgoing email from that account. Takes priority over `signature_image_path`. |
-| `signature_image_path` | Used **only** when `signature_html` is not set. The image is embedded inline at the bottom of the email (via `Content-ID` / `<img src="cid:...">`), so it appears as a signature image, not a file attachment. Path is relative to the project root or absolute. |
+| `signature_html` | HTML block appended to the HTML part. Used only when no Gmail Settings signature is found. |
+| `signature_image_path` | Inline signature image. Used only when neither a Gmail Settings signature nor `signature_html` is set. |
 
-If neither field is set, emails are sent with no signature. A plain-text body is
-always included as a fallback for clients that don't render HTML.
+> **Re-authentication required:** Auto-fetching needs the
+> `gmail.settings.basic` scope, which was added to `SCOPES`. Accounts
+> authenticated before this change must be re-authenticated once
+> (`python setup_auth.py`) before the auto-fetched signature will work.
+> Until then, the server silently falls back to the config.json sources.
 
 ### 4. Get Google OAuth credentials
 

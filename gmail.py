@@ -25,6 +25,8 @@ class GmailService:
         self.account_name = account_name
         self.signature_html = signature_html or ""
         self.signature_image_path = signature_image_path or ""
+        # Cache for the auto-fetched Gmail signature (None = not yet fetched).
+        self._gmail_signature: Optional[str] = None
 
     # ------------------------------------------------------------------ profile
 
@@ -124,6 +126,41 @@ class GmailService:
             userId="me", body={"message": {"raw": self._encode(msg)}}
         ).execute()
 
+    # ------------------------------------------------------------------ signature fetch
+
+    def get_gmail_signature(self) -> str:
+        """Return the HTML signature configured in the account's own Gmail
+        Settings (Settings > See all settings > Signature), for the primary
+        send-as address.
+
+        Requires the gmail.settings.basic scope. The result is cached on the
+        instance. Any failure (missing scope, API error, no signature set)
+        returns an empty string rather than raising.
+        """
+        if self._gmail_signature is not None:
+            return self._gmail_signature
+
+        signature = ""
+        try:
+            result = self.service.users().settings().sendAs().list(
+                userId="me"
+            ).execute()
+            send_as = result.get("sendAs", [])
+            # The primary login address is flagged isPrimary (exactly one per
+            # account). Fall back to isDefault, then the first entry.
+            entry = (
+                next((s for s in send_as if s.get("isPrimary")), None)
+                or next((s for s in send_as if s.get("isDefault")), None)
+                or (send_as[0] if send_as else None)
+            )
+            if entry:
+                signature = entry.get("signature", "") or ""
+        except Exception:
+            signature = ""
+
+        self._gmail_signature = signature
+        return signature
+
     # ------------------------------------------------------------------ message building
 
     def _build_message(
@@ -146,15 +183,28 @@ class GmailService:
 
         A plain-text body is always included as a fallback for clients that
         do not render HTML.
+
+        Signature priority (only ONE source is ever used per email):
+            1. Auto-fetched Gmail Settings signature (gmail.settings.basic)
+            2. config.json signature_html
+            3. config.json signature_image_path (inline image)
+            4. No signature
         """
-        # Decide whether we need an HTML part at all.
-        use_inline_image = bool(self.signature_image_path) and not self.signature_html
+        # Resolve the single effective HTML signature, in priority order.
+        gmail_signature = self.get_gmail_signature()
+        effective_html_signature = gmail_signature or self.signature_html
+
+        # The inline image fallback is used only when neither HTML signature
+        # source (auto-fetched or config) provided anything.
+        use_inline_image = (
+            bool(self.signature_image_path) and not effective_html_signature
+        )
 
         html_content = html_body or ""
-        if self.signature_html:
-            # Append the configured HTML signature to the HTML part.
+        if effective_html_signature:
+            # Append the resolved HTML signature to the HTML part.
             base_html = html_content or self._text_to_html(body)
-            html_content = base_html + self.signature_html
+            html_content = base_html + effective_html_signature
         elif use_inline_image:
             base_html = html_content or self._text_to_html(body)
             html_content = base_html + '<br><img src="cid:signature_image">'
