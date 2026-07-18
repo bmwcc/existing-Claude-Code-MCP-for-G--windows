@@ -1,11 +1,12 @@
 import io
 import mimetypes
 import os
+import base64
 from typing import Any, Dict, List, Optional
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
 
 # MIME types that can be exported as plain text from Google Workspace formats
 _EXPORT_MAP = {
@@ -170,6 +171,36 @@ class DriveService:
             body["parents"] = [folder_id]
 
         media = MediaFileUpload(file_path, mimetype=resolved_mime, resumable=True)
+        f = self.service.files().create(
+            body=body,
+            media_body=media,
+            fields="id,name,mimeType,size,modifiedTime,parents,webViewLink,owners",
+        ).execute()
+        return self._parse_file(f)
+
+    def create_file_from_content(
+        self,
+        name: str,
+        content: str,
+        mime_type: str = "text/plain",
+        folder_id: Optional[str] = None,
+        is_base64: bool = False,
+    ) -> Dict[str, Any]:
+        """Create a file directly in Drive from content, no local file needed.
+        Set is_base64=True for binary files (e.g. real .docx, .pdf, .xlsx);
+        leave False for plain text content."""
+        if is_base64:
+            file_bytes = base64.b64decode(content)
+        else:
+            file_bytes = content.encode("utf-8")
+
+        body: Dict[str, Any] = {"name": name}
+        if folder_id:
+            body["parents"] = [folder_id]
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_bytes), mimetype=mime_type, resumable=True
+        )
         f = self.service.files().create(
             body=body,
             media_body=media,
