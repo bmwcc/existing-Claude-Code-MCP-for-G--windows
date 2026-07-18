@@ -655,6 +655,33 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["account", "file_path"],
             },
         ),
+        types.Tool(
+            name="drive_create_file",
+            description=(
+                "Create a new file directly in Google Drive from content, no local file needed. "
+                "Works for any file type — plain text, real .docx/.xlsx/.pdf (base64-encoded), etc."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "account": {"type": "string", "description": "Account name"},
+                    "name": {"type": "string", "description": "Name to give the new file, e.g. 'notes.txt' or 'report.docx'"},
+                    "content": {"type": "string", "description": "File content — plain text, or base64-encoded if is_base64 is true"},
+                    "mime_type": {
+                        "type": "string",
+                        "description": "MIME type of the file (default 'text/plain'). Use 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' for real Word docs, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' for real Excel files.",
+                        "default": "text/plain",
+                    },
+                    "folder_id": {"type": "string", "description": "Destination folder ID. Omit to create at Drive root."},
+                    "is_base64": {
+                        "type": "boolean",
+                        "description": "Set true if content is base64-encoded (required for binary files like real .docx/.pdf/.xlsx). Leave false for plain text.",
+                        "default": False,
+                    },
+                },
+                "required": ["account", "name", "content"],
+            },
+        ),
     ]
 
 
@@ -963,6 +990,17 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
                 folder_id=args.get("folder_id"),
                 name=args.get("name"),
                 mime_type=args.get("mime_type"),
+            ))
+
+        # ---- drive_create_file ---------------------------------------------
+        elif name == "drive_create_file":
+            svc = _get_drive(args["account"])
+            return _fmt(svc.create_file_from_content(
+                name=args["name"],
+                content=args["content"],
+                mime_type=args.get("mime_type", "text/plain"),
+                folder_id=args.get("folder_id"),
+                is_base64=bool(args.get("is_base64", False)),
             ))
 
         else:
